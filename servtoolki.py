@@ -11,20 +11,24 @@ DATA_FILE = "auth_data.json"
 PIN_CODE = "1312"
 
 def init_data():
+    """Инициализация данных, если файл еще не существует."""
     if not os.path.exists(DATA_FILE):
         data = {"users": [], "keys": []}
         with open(DATA_FILE, 'w') as f:
             json.dump(data, f, indent=4)
 
 def load_data():
+    """Загрузка данных из файла."""
     with open(DATA_FILE, 'r') as f:
         return json.load(f)
 
 def save_data(data):
+    """Сохранение данных в файл."""
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
 def clean_expired_accounts():
+    """Очистка просроченных аккаунтов."""
     data = load_data()
     current_time = datetime.now()
     data["users"] = [
@@ -35,6 +39,7 @@ def clean_expired_accounts():
 
 @app.route('/generate_key', methods=['POST'])
 def generate_key():
+    """Генерация ключа с заданным сроком действия."""
     print("[DEBUG] Received request to /generate_key")
     data = request.get_json()
     print(f"[DEBUG] Request data: {data}")
@@ -62,6 +67,7 @@ def generate_key():
 
 @app.route('/register', methods=['POST'])
 def register():
+    """Регистрация нового пользователя."""
     data = request.get_json()
     key = data.get('key')
     username = data.get('username')
@@ -99,6 +105,7 @@ def register():
 
 @app.route('/login', methods=['POST'])
 def login():
+    """Авторизация пользователя."""
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
@@ -123,10 +130,6 @@ def login():
     else:
         return jsonify({"error": "Неверный пароль"}), 401
 
-
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Railway передаёт свой порт через переменную окружения
     app.run(host="0.0.0.0", port=port)
-
-
