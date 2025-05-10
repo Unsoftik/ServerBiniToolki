@@ -1,1 +1,1 @@
-python servtoolki.py
+web: python servtoolki.py
