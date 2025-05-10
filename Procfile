@@ -1,1 +1,1 @@
-web: python servtoolki.py
+web: gunicorn server:app
