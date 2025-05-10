@@ -5,7 +5,7 @@ import uuid
 import json
 import os
 
-init_data()  # до app.run
+
 app = Flask(__name__)
 
 DATA_FILE = "auth_data.json"
@@ -132,5 +132,6 @@ def login():
         return jsonify({"error": "Неверный пароль"}), 401
 
 if __name__ == "__main__":
+    init_data()
     port = int(os.environ.get("PORT", 8080))  # Railway передаёт свой порт через переменную окружения
     app.run(host="0.0.0.0", port=port)
