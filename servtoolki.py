@@ -5,6 +5,7 @@ import uuid
 import json
 import os
 
+init_data()  # до app.run
 app = Flask(__name__)
 
 DATA_FILE = "auth_data.json"
