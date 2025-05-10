@@ -123,8 +123,10 @@ def login():
     else:
         return jsonify({"error": "Неверный пароль"}), 401
 
+
+
 if __name__ == "__main__":
-    init_data()
-    port = int(os.environ.get("PORT", 5000))  # <-- важно для Railway
+    port = int(os.environ.get("PORT", 5000))  # Railway передаёт свой порт через переменную окружения
     app.run(host="0.0.0.0", port=port)
+
 
