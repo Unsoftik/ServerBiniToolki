@@ -40,9 +40,15 @@ def clean_expired_accounts():
     ]
     save_data(data)
 
-# Генерация ключа
-@app.route('/generate_key', methods=['POST'])
+@app.route('/generate_key', methods=['GET', 'POST'])
 def generate_key():
+    if request.method == 'POST':
+        data = request.get_json()
+        pin = data.get('pin')
+        duration_days = data.get('duration_days')
+    elif request.method == 'GET':
+        pin = request.args.get('pin')
+        duration_days = request.args.get('duration_days')
     data = request.get_json()
     pin = data.get('pin')
     duration_days = data.get('duration_days')
