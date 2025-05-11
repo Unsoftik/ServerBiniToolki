@@ -130,16 +130,21 @@ def login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
+    hwid = data.get('hwid')
 
-    if not username or not password:
-        logger.warning("Отсутствует имя пользователя или пароль")
-        return jsonify({"error": "Имя пользователя и пароль обязательны"}), 400
+    if not username or not password or not hwid:
+        logger.warning("Отсутствует имя пользователя, пароль или HWID")
+        return jsonify({"error": "Имя пользователя, пароль и HWID обязательны"}), 400
 
     clean_expired_accounts()
     users = load_json(USERS_FILE)
 
     if username in users and users[username]["password"] == hash_password(password):
         if is_account_valid(users[username]["expiry_date"]):
+            # Проверка HWID
+            if users[username]["hwid"] != hwid:
+                logger.warning(f"HWID не совпадает для пользователя {username}")
+                return jsonify({"error": "HWID mismatch"}), 403
             # Генерация токена сессии
             token = generate_session_token()
             sessions = load_json(SESSIONS_FILE)
@@ -163,16 +168,22 @@ def login():
 def verify_session():
     data = request.get_json()
     token = data.get('session_token')
+    hwid = data.get('hwid')
 
-    if not token:
-        logger.warning("Отсутствует токен сессии")
-        return jsonify({"error": "Токен сессии обязателен"}), 400
+    if not token or not hwid:
+        logger.warning("Отсутствует токен сессии или HWID")
+        return jsonify({"error": "Токен сессии и HWID обязательны"}), 400
 
     if is_session_valid(token):
         sessions = load_json(SESSIONS_FILE)
         username = sessions[token]["username"]
-        logger.info(f"Токен сессии валиден: {token}, пользователь: {username}")
-        return jsonify({"message": "Сессия валидна", "username": username}), 200
+        users = load_json(USERS_FILE)
+        if username in users and users[username]["hwid"] == hwid:
+            logger.info(f"Токен сессии валиден: {token}, пользователь: {username}")
+            return jsonify({"message": "Сессия валидна", "username": username}), 200
+        else:
+            logger.warning(f"HWID не совпадает для сессии: {token}")
+            return jsonify({"error": "HWID mismatch"}), 403
     else:
         logger.warning(f"Невалидный или истекший токен: {token}")
         return jsonify({"error": "Невалидный или истекший токен"}), 401
@@ -184,10 +195,11 @@ def register():
     key = data.get('key')
     username = data.get('username')
     password = data.get('password')
+    hwid = data.get('hwid')
 
-    if not key or not username or not password:
-        logger.warning("Отсутствует ключ, имя пользователя или пароль")
-        return jsonify({"error": "Ключ, имя пользователя и пароль обязательны"}), 400
+    if not key or not username or not password or not hwid:
+        logger.warning("Отсутствует ключ, имя пользователя, пароль или HWID")
+        return jsonify({"error": "Ключ, имя пользователя, пароль и HWID обязательны"}), 400
 
     clean_expired_accounts()
     keys = load_json(KEYS_FILE)
@@ -213,7 +225,8 @@ def register():
 
     users[username] = {
         "password": hash_password(password),
-        "expiry_date": expiry_date
+        "expiry_date": expiry_date,
+        "hwid": hwid  # Сохранение HWID
     }
     keys[key]["used"] = True
 
