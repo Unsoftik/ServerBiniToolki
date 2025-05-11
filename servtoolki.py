@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import string
 import random
 import logging
+import uuid  # Для генерации уникальных токенов
 
 app = Flask(__name__)
 
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 # Пути к JSON-файлам
 USERS_FILE = "users.json"
 KEYS_FILE = "keys.json"
+SESSIONS_FILE = "sessions.json"  # Новый файл для сессий
 
 # Инициализация JSON-файлов
 def init_files():
@@ -26,6 +28,10 @@ def init_files():
     if not os.path.exists(KEYS_FILE):
         logger.info("Создание keys.json")
         with open(KEYS_FILE, 'w') as f:
+            json.dump({}, f)
+    if not os.path.exists(SESSIONS_FILE):
+        logger.info("Создание sessions.json")
+        with open(SESSIONS_FILE, 'w') as f:
             json.dump({}, f)
 
 # Загрузка данных из JSON
@@ -72,9 +78,26 @@ def clean_expired_accounts():
     if updated:
         save_json(USERS_FILE, users)
 
-# Генерация ключа по формуле
+# Генерация ключа
 def generate_key():
     return "SKY-" + ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(24))
+
+# Генерация токена сессии
+def generate_session_token():
+    return str(uuid.uuid4())
+
+# Проверка токена сессии
+def is_session_valid(token):
+    sessions = load_json(SESSIONS_FILE)
+    if token in sessions:
+        expiry = datetime.fromisoformat(sessions[token]["expiry"])
+        if datetime.now() < expiry:
+            return True
+        else:
+            del sessions[token]
+            save_json(SESSIONS_FILE, sessions)
+            logger.info(f"Удалена истекшая сессия: {token}")
+    return False
 
 # Маршрут для создания ключа
 @app.route('/generate_key', methods=['POST'])
@@ -117,8 +140,16 @@ def login():
 
     if username in users and users[username]["password"] == hash_password(password):
         if is_account_valid(users[username]["expiry_date"]):
-            logger.info(f"Успешный вход: {username}")
-            return jsonify({"message": "Вход успешен"}), 200
+            # Генерация токена сессии
+            token = generate_session_token()
+            sessions = load_json(SESSIONS_FILE)
+            sessions[token] = {
+                "username": username,
+                "expiry": (datetime.now() + timedelta(minutes=10)).isoformat()
+            }
+            save_json(SESSIONS_FILE, sessions)
+            logger.info(f"Успешный вход: {username}, выдан токен: {token}")
+            return jsonify({"message": "Вход успешен", "session_token": token}), 200
         else:
             del users[username]
             save_json(USERS_FILE, users)
@@ -126,6 +157,25 @@ def login():
             return jsonify({"error": "Аккаунт истёк"}), 401
     logger.warning(f"Неуспешный вход: {username}")
     return jsonify({"error": "Неверное имя пользователя или пароль"}), 401
+
+# Маршрут для проверки токена сессии
+@app.route('/verify_session', methods=['POST'])
+def verify_session():
+    data = request.get_json()
+    token = data.get('session_token')
+
+    if not token:
+        logger.warning("Отсутствует токен сессии")
+        return jsonify({"error": "Токен сессии обязателен"}), 400
+
+    if is_session_valid(token):
+        sessions = load_json(SESSIONS_FILE)
+        username = sessions[token]["username"]
+        logger.info(f"Токен сессии валиден: {token}, пользователь: {username}")
+        return jsonify({"message": "Сессия валидна", "username": username}), 200
+    else:
+        logger.warning(f"Невалидный или истекший токен: {token}")
+        return jsonify({"error": "Невалидный или истекший токен"}), 401
 
 # Маршрут для регистрации
 @app.route('/register', methods=['POST'])
@@ -171,7 +221,17 @@ def register():
     save_json(KEYS_FILE, keys)
     logger.info(f"Успешная регистрация: {username}, ключ: {key}")
 
-    return jsonify({"message": "Регистрация успешна"}), 200
+    # Генерация токена сессии после регистрации
+    token = generate_session_token()
+    sessions = load_json(SESSIONS_FILE)
+    sessions[token] = {
+        "username": username,
+        "expiry": (datetime.now() + timedelta(minutes=10)).isoformat()
+    }
+    save_json(SESSIONS_FILE, sessions)
+    logger.info(f"Выдан токен сессии после регистрации: {token}")
+
+    return jsonify({"message": "Регистрация успешна", "session_token": token}), 200
 
 if __name__ == "__main__":
     init_files()
